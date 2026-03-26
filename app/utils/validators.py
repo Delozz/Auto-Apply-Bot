@@ -19,7 +19,7 @@ class CandidateProfile(BaseModel):
                 "phone": "512-787-8221",
                 "education": "Texas A&M University - Computer Science",
                 "skills": ["Python", "C++", "SQL", "Data Structures"],
-                "interests": ["Quantitative Finance", "Distributed Systems"],
+                "interests": ["Quantitative Finance", "Software Engineering", "Machine Learning"],
                 "resume_path": "./data/resumes/master_resume.pdf",
             }
         }
