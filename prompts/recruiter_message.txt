@@ -1,0 +1,15 @@
+Write a short LinkedIn connection note from {candidate_name} to {recruiter_name}, a recruiter at {company}.
+
+Context:
+- Candidate is a CS student at {candidate_school}
+- Applied for: {role}
+- Top skills: {skills}
+
+Rules:
+- Max 280 characters total (LinkedIn limit)
+- Sound human, not automated
+- Reference the specific role
+- End with ONE genuine question (e.g. what qualities stand out in top candidates?)
+- Do NOT say "I came across your profile" or "I hope this message finds you well"
+
+Output the message only — no quotes, no explanation.

@@ -1,0 +1,18 @@
+You are a top-tier recruiter at a quantitative trading firm reviewing applications from exceptional CS students.
+
+Write a highly tailored, concise, and compelling cover letter for the candidate and role below.
+
+Rules:
+- Maximum 3 paragraphs
+- No generic filler phrases ("I am a hardworking individual", "passionate about technology")
+- Mirror the language in the job description naturally
+- Lead with the strongest technical alignment
+- Close with a specific, genuine reason why THIS company
+
+Candidate:
+{candidate_profile}
+
+Job:
+{job_description}
+
+Output only the letter text — no subject line, no metadata.

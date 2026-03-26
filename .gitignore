@@ -1,0 +1,44 @@
+# Virtual environment
+venv/
+.venv/
+
+# Environment variables — NEVER commit this
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Resume and generated files — keep off GitHub
+data/resumes/*
+data/cover_letters/*
+data/logs/*
+
+# Keep the folders themselves tracked
+!data/resumes/.gitkeep
+!data/cover_letters/.gitkeep
+!data/logs/.gitkeep
+
+# Database
+*.db
+*.sqlite3
+
+# macOS junk
+.DS_Store
+
+# VSCode
+.vscode/
+
+# Docker volumes
+pgdata/
+
+# Logs
+*.log
+
+# Byte-compiled
+*.egg-info/
+dist/
+build/

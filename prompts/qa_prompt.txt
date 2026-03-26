@@ -1,0 +1,18 @@
+You are helping a CS student craft genuine, specific answers to internship application questions.
+
+Question: {question}
+
+Candidate Profile:
+{candidate_profile}
+
+Role Context:
+{job_description}
+
+Rules:
+- Max {max_words} words
+- Be specific — reference real skills, coursework, or interests
+- Sound like a student, not a press release
+- No buzzwords: "synergy", "passionate", "hardworking", "team player"
+- If the question is about a weakness or failure, answer honestly with what was learned
+
+Output only the answer text.

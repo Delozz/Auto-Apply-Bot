@@ -1,4 +1,4 @@
-# 🤖 Auto Apply Bot
+#  Auto Apply Bot
 
 Semi-automated internship application system for SWE + Quant roles.
 Built by Devon Lopez — Texas A&M CS, targeting Summer 2027.
@@ -7,7 +7,7 @@ Built by Devon Lopez — Texas A&M CS, targeting Summer 2027.
 
 ---
 
-## 🚀 Setup & Run
+## Setup & Run
 
 ### 1. Install dependencies
 ```bash
@@ -46,7 +46,7 @@ Open `http://localhost:8000/docs` and POST to:
 
 ---
 
-## 📁 Structure
+##  Structure
 
 ```
 auto_apply_bot/
@@ -81,14 +81,4 @@ auto_apply_bot/
 
 ---
 
-## 🗺️ Roadmap
-
-- [x] Full project scaffold
-- [x] Groq + Llama 3.3 integration
-- [x] Local embeddings via sentence-transformers
-- [ ] Drop in master_resume.pdf and test Greenhouse scraper
-- [ ] LinkedIn scraper (authenticated)
-- [ ] PostgreSQL tracking dashboard
-- [ ] Email/calendar integration for interview invites
-- [ ] Feedback loop — track which resumes get responses
 # Auto-Apply-Bot
