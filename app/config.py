@@ -14,6 +14,9 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str
+    postgres_user: str = "devon"
+    postgres_password: str
+    postgres_db: str = "auto_apply"
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
