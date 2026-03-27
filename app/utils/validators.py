@@ -10,6 +10,11 @@ class CandidateProfile(BaseModel):
     skills: list[str]
     interests: list[str]
     resume_path: str
+    graduation_year: Optional[str] = "2028"
+    linkedin_url: Optional[str] = None
+    github_url: Optional[str] = None
+    website_url: Optional[str] = None
+    cover_letter_path: Optional[str] = None
 
     class Config:
         json_schema_extra = {
@@ -18,9 +23,12 @@ class CandidateProfile(BaseModel):
                 "email": "devoninternships@gmail.com",
                 "phone": "512-787-8221",
                 "education": "Texas A&M University - Computer Science",
-                "skills": ["Python", "C++", "SQL", "Data Structures"],
-                "interests": ["Quantitative Finance", "Software Engineering", "Machine Learning"],
+                "skills": ["Python", "Linux", "Object-Oriented Programming", "Data Structures", "Git", "Pandas", "NumPy", "Computer Hardware"],
+                "interests": ["Quantitative Finance", "Distributed Systems", "Machine Learning", "Cybersecurity", "Software Development"],
                 "resume_path": "./data/resumes/master_resume.pdf",
+                "graduation_year": "2028",
+                "linkedin_url": "https://www.linkedin.com/in/devon-lopez1/",
+                "github_url": "https://github.com/Delozz",
             }
         }
 

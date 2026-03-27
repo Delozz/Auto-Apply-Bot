@@ -73,6 +73,15 @@ async def scrape_greenhouse_board(company_name: str, board_token: str) -> list[J
                 if "intern" not in title.lower():
                     continue
 
+                swe_keywords = [
+                    "software", "engineer", "developer", "swe",
+                    "backend", "frontend", "fullstack", "full stack",
+                    "infrastructure", "platform", "quant", "quantitative",
+                    "data engineer", "ml engineer", "systems",
+                ]
+                if not any(kw in title.lower() for kw in swe_keywords):
+                    continue
+
                 jobs.append(JobPosting(
                     company=company_name,
                     role=title,

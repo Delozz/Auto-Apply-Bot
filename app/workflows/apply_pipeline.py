@@ -22,6 +22,10 @@ CANDIDATE = CandidateProfile(
     skills=["Python", "C++", "SQL", "Data Structures", "Algorithms"],
     interests=["Quantitative Finance", "Distributed Systems"],
     resume_path=str(RESUMES_DIR / "master_resume.pdf"),
+    graduation_year="2028",
+    linkedin_url="",    # add your LinkedIn URL e.g. https://linkedin.com/in/devonlopez
+    github_url="",      # add your GitHub URL e.g. https://github.com/devonlopez
+    website_url="",     # add your portfolio URL if you have one
 )
 
 
