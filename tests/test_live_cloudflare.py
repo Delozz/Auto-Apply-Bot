@@ -28,25 +28,25 @@ CANDIDATE = CandidateProfile(
     interests=["Quantitative Finance", "Distributed Systems"],
     resume_path=str(RESUMES_DIR / "master_resume.pdf"),
     graduation_year="2028",
-    linkedin_url="",              # add yours: https://linkedin.com/in/yourprofile
-    github_url="",                # add yours: https://github.com/yourhandle
+    linkedin_url="https://www.linkedin.com/in/devon-lopez1/",              # add yours: https://linkedin.com/in/yourprofile
+    github_url="https://github.com/Delozz",                # add yours: https://github.com/yourhandle
     website_url="",
 )
 
 # ─── Cloudflare-specific answers ─────────────────────────────────────────────
 # Fill these in before running — they are REQUIRED fields on the form
 
-HOW_DID_YOU_HEAR = "LinkedIn"   # options: LinkedIn, Indeed, Referral, Company Website, etc.
+HOW_DID_YOU_HEAR = "Linkedin"   # exact text from form   # options: LinkedIn, Indeed, Referral, Company Website, etc.
 
 # Your 1st choice area of interest — open the form and check what options exist
 # Common options: Backend, Frontend, Full Stack, Infrastructure, Security, ML/AI
-SWE_AREA_1 = ""   # e.g. "Backend"
-SWE_AREA_2 = ""   # optional 2nd choice
+SWE_AREA_1 = "Backend/Systems"   # options: "Backend/Systems", "Full-stack", "Frontend"
+SWE_AREA_2 = "Full-stack"   # optional 2nd choice
 
 # Why are you interested in Cloudflare? (required, ~2-3 sentences min)
 # The bot will use the generated cover letter text if you leave this blank,
 # but you should write something specific to this question
-WHY_INTERESTED = ""  # fill this in — it's a required essay question
+WHY_INTERESTED = "I am excited about the opportunity to work at Cloudflare because of its commitment to building a better Internet. I admire Cloudflare's innovative approach to security and performance, and I believe my skills in software engineering align well with the company's mission."
 
 
 async def run():
@@ -81,9 +81,6 @@ async def run():
 
     # Pause to review before opening browser
     print("\n" + "=" * 60)
-    print("⚠️  Before continuing, make sure you have set:")
-    print(f"   SWE_AREA_1  = '{SWE_AREA_1}' (required — must match form options exactly)")
-    print(f"   WHY_INTERESTED = {'set ✅' if WHY_INTERESTED else 'NOT SET — will use cover letter'}")
     print("=" * 60)
     input("\n  Press Enter to open the application form...")
 
@@ -101,7 +98,7 @@ async def run():
             candidate=CANDIDATE,
             cover_letter_text=cover_letter,
             cover_letter_path=cover_letter_path,
-            city="College Station, TX",
+            city="Cedar Park, Texas, United States",
             why_interested=why,
             how_did_you_hear=HOW_DID_YOU_HEAR,
             swe_area_1=SWE_AREA_1,
