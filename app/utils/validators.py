@@ -51,3 +51,19 @@ class ApplicationResult(BaseModel):
     resume_path: Optional[str] = None
     submitted_at: Optional[str] = None
     notes: Optional[str] = None
+
+
+class FormField(BaseModel):
+    label: str
+    field_type: str  # "text" | "textarea" | "select" | "react_select" | "checkbox" | "radio" | "file"
+    required: bool = False
+    options: list[str] = []
+    placeholder: str = ""
+    selector_hint: str = ""
+    section: str = ""
+
+
+class FormManifest(BaseModel):
+    url: str
+    fields: list[FormField]
+    analyzed_at: str

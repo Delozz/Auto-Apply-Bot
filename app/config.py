@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     # LLM — Groq
     openai_api_key: str
     openai_model: str = "llama-3.3-70b-versatile"
+    vision_model: str = "meta-llama/llama-4-scout-17b-16e-instruct"
     openai_base_url: str = "https://api.groq.com/openai/v1"
 
     # Database

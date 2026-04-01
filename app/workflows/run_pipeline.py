@@ -21,6 +21,8 @@ from app.llm.cover_letter_gen import generate_cover_letter, save_cover_letter
 from app.llm.resume_pdf_gen import generate_tailored_pdf
 from app.automation.playwright_engine import launch_browser, close_browser, random_delay
 from app.automation.form_filler import fill_greenhouse_application
+from app.automation.adaptive_filler import adaptive_fill
+from app.vision.form_analyzer import analyze_form_with_vision
 from app.automation.submission_handler import pause_for_human_review, click_submit, confirm_submission
 from app.utils.validators import CandidateProfile, JobPosting
 from app.utils.constants import RESUMES_DIR
@@ -36,8 +38,8 @@ CANDIDATE = CandidateProfile(
     interests=["Quantitative Finance", "Distributed Systems"],
     resume_path=str(RESUMES_DIR / "master_resume.pdf"),
     graduation_year="2028",
-    linkedin_url="",   # add yours
-    github_url="",     # add yours
+    linkedin_url="https://www.linkedin.com/in/devon-lopez1",   # add yours
+    github_url="https://github.com/Delozz",     # add yours
     website_url="",
 )
 
@@ -132,17 +134,42 @@ async def process_job(job: JobPosting, resume_text: str) -> str:
             await page.goto(job.application_url, timeout=30000)
             await random_delay(2.0, 3.0)
 
-            await fill_greenhouse_application(
+            # Vision analysis — discovers all fields + probes dropdown options
+            logger.info("Running vision form analysis...")
+            try:
+                manifest = await analyze_form_with_vision(page, job.application_url)
+            except Exception as e:
+                logger.warning(f"Vision analysis failed, proceeding without manifest: {e}")
+                manifest = None
+
+            # Try adaptive filler first — works on any ATS without config
+            logger.info("Running adaptive form fill...")
+            await adaptive_fill(
                 page=page,
                 candidate=candidate_for_job,
-                cover_letter_text=cover_letter,
+                job=job,
+                resume_path=candidate_for_job.resume_path,
+                cover_letter=cover_letter,
                 cover_letter_path=cover_letter_path,
-                city=city,
                 why_interested=why,
-                how_did_you_hear=how_heard,
-                swe_area_1=swe1,
-                swe_area_2=swe2,
+                manifest=manifest,
             )
+
+            # Then run Greenhouse-specific filler as a second pass to catch
+            # React Select dropdowns and fields the adaptive filler may have missed
+            if job.source == "greenhouse" or "greenhouse.io" in job.application_url:
+                logger.info("Running Greenhouse-specific pass for React Select dropdowns...")
+                await fill_greenhouse_application(
+                    page=page,
+                    candidate=candidate_for_job,
+                    cover_letter_text=cover_letter,
+                    cover_letter_path=cover_letter_path,
+                    city=city,
+                    why_interested=why,
+                    how_did_you_hear=how_heard,
+                    swe_area_1=swe1,
+                    swe_area_2=swe2,
+                )
 
             logger.info("Autofill complete — review the form before submitting")
 
