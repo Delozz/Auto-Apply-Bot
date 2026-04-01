@@ -22,6 +22,57 @@ from app.automation.playwright_engine import random_delay
 from app.automation.form_filler import select_react_dropdown, _fill_by_label
 from app.utils.logger import logger
 
+async def _js_react_select(page: Page, label: str, value: str) -> bool:
+    """
+    Fallback React Select handler using JS DOM walk.
+
+    Used when select_react_dropdown() can't find the control via label[for=...].
+    Finds the control by walking up from any element whose text matches the label,
+    clicks it, types to filter, then clicks the matching option.
+    """
+    clicked = await page.evaluate(f"""
+    () => {{
+        const needle = {json.dumps(label[:50].lower())};
+        const controls = document.querySelectorAll('[class*="select__control"]');
+        for (const control of controls) {{
+            let parent = control.parentElement;
+            for (let depth = 0; depth < 8 && parent; depth++) {{
+                for (const sibling of parent.children) {{
+                    if (sibling.contains(control)) continue;
+                    const text = (sibling.innerText || '').trim().replace(/[*]/g, '').toLowerCase();
+                    if (text && needle.slice(0, 12) && text.includes(needle.slice(0, 12))) {{
+                        control.scrollIntoView({{block: 'center'}});
+                        control.click();
+                        return true;
+                    }}
+                }}
+                parent = parent.parentElement;
+            }}
+        }}
+        return false;
+    }}
+    """)
+    if not clicked:
+        return False
+
+    await random_delay(0.4, 0.8)
+    try:
+        await page.keyboard.type(value[:20], delay=40)
+        await random_delay(0.3, 0.6)
+        option = await page.query_selector(f'[class*="option"]:has-text("{value[:25]}")')
+        if not option:
+            option = await page.query_selector(f'[role="option"]:has-text("{value[:25]}")')
+        if option:
+            await option.click()
+            await random_delay(0.2, 0.4)
+            logger.debug(f"JS React Select fallback: '{label}' → '{value}'")
+            return True
+        await page.keyboard.press("Escape")
+        return False
+    except Exception:
+        await page.keyboard.press("Escape")
+        return False
+
 client = OpenAI(
     api_key=settings.openai_api_key,
     base_url=settings.openai_base_url,
@@ -375,6 +426,8 @@ async def execute_filling_plan(
 
             elif action_type == "react_select":
                 success = await select_react_dropdown(page, label[:30], value)
+                if not success:
+                    success = await _js_react_select(page, label, value)
                 results["filled" if success else "skipped"] += 1
                 continue
 

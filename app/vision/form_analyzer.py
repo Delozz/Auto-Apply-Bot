@@ -28,19 +28,55 @@ client = OpenAI(
 
 # ─── Dropdown Prober ──────────────────────────────────────────────────────────
 
-async def probe_dropdown_options(page: Page, label: str, trigger_selector: str) -> list[str]:
+async def probe_dropdown_options(page: Page, label: str, trigger_selector: str | None) -> list[str]:
     """
     Click a dropdown open, screenshot the option list, ask vision LLM to
     transcribe the options, then close the dropdown.
 
+    For React Select dropdowns, trigger_selector may be None — in that case a
+    JS DOM walk finds the control nearest to the label text and clicks it.
+
     Returns: list of option strings (empty list if probing fails).
     """
     try:
-        el = await page.query_selector(trigger_selector)
-        if not el or not await el.is_visible():
+        clicked = False
+
+        if trigger_selector:
+            el = await page.query_selector(trigger_selector)
+            if el and await el.is_visible():
+                await el.click()
+                clicked = True
+
+        if not clicked:
+            # JS DOM walk: find the React Select control that lives closest to
+            # any element whose text matches the label.
+            clicked = await page.evaluate(f"""
+            () => {{
+                const needle = {json.dumps(label[:50].lower())};
+                const controls = document.querySelectorAll('[class*="select__control"]');
+                for (const control of controls) {{
+                    let parent = control.parentElement;
+                    for (let depth = 0; depth < 8 && parent; depth++) {{
+                        for (const sibling of parent.children) {{
+                            if (sibling.contains(control)) continue;
+                            const text = (sibling.innerText || '').trim()
+                                .replace(/[*]/g, '').toLowerCase();
+                            if (text && needle.slice(0, 12) && text.includes(needle.slice(0, 12))) {{
+                                control.scrollIntoView({{block: 'center'}});
+                                control.click();
+                                return true;
+                            }}
+                        }}
+                        parent = parent.parentElement;
+                    }}
+                }}
+                return false;
+            }}
+            """)
+
+        if not clicked:
             return []
 
-        await el.click()
         await random_delay(0.5, 1.0)  # let options render
 
         # Screenshot just the visible viewport (options appear in viewport)
@@ -211,17 +247,26 @@ async def analyze_form_with_vision(page: Page, url: str) -> FormManifest:
             }
         });
 
-        // React Select controls
-        document.querySelectorAll('[class*="select__control"], .select__control').forEach(el => {
-            if (el.getBoundingClientRect().width > 0) {
-                const container = el.closest('[class*="select"], .select');
-                const labelEl = container
-                    ? container.querySelector('label, .select__label, [class*="label"]')
-                    : null;
-                const label = labelEl ? labelEl.innerText.trim().replace(/[*]/g, '').trim() : '';
-                if (label) {
-                    results.push({ selector: null, kind: 'react_select', label: label });
+        // React Select controls — walk UP from each control to find the nearest
+        // label text (works even when the label is a <div> or <span>, not <label>)
+        document.querySelectorAll('[class*="select__control"]').forEach(control => {
+            if (!control.getBoundingClientRect().width) return;
+            let parent = control.parentElement;
+            let label = '';
+            for (let depth = 0; depth < 8 && parent && !label; depth++) {
+                for (const sibling of parent.children) {
+                    if (sibling.contains(control)) continue; // skip the branch with the control
+                    const text = (sibling.innerText || '').trim().replace(/[*]/g, '').trim();
+                    // Accept short text that looks like a label (not another form widget)
+                    if (text && text.length < 120 && !sibling.querySelector('input, select, textarea, [class*="select__control"]')) {
+                        label = text.split('\n')[0].trim(); // first line only
+                        break;
+                    }
                 }
+                parent = parent.parentElement;
+            }
+            if (label && !results.find(r => r.label === label && r.kind === 'react_select')) {
+                results.push({ selector: null, kind: 'react_select', label: label });
             }
         });
 
@@ -239,15 +284,10 @@ async def analyze_form_with_vision(page: Page, url: str) -> FormManifest:
             continue
 
         if kind == "react_select":
-            trigger_sel = (
-                f'label:has-text("{label[:30]}") ~ div [class*="select__control"], '
-                f'label:has-text("{label[:30]}") + div [class*="select__control"]'
-            )
+            # Pass None — probe_dropdown_options will use JS DOM walk to find it
+            trigger_sel = None
         else:
             trigger_sel = selector
-
-        if not trigger_sel:
-            continue
 
         options = await probe_dropdown_options(page, label, trigger_sel)
 
