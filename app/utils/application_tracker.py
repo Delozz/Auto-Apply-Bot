@@ -7,19 +7,26 @@ pipeline skips already-applied jobs on repeated runs.
 import json
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from app.utils.constants import APPLIED_JOBS_FILE, OUTREACH_LOG_FILE
 from app.utils.logger import logger
 
 
+def _normalize_url(url: str) -> str:
+    """Strip query string and fragment so URLs match regardless of tracking params."""
+    parsed = urlparse(url)
+    return parsed._replace(query="", fragment="").geturl()
+
+
 def load_applied_urls() -> set[str]:
-    """Return set of application URLs already submitted."""
+    """Return set of application URLs already submitted (normalized, no query params)."""
     if not APPLIED_JOBS_FILE.exists():
         return set()
     try:
         with APPLIED_JOBS_FILE.open() as f:
             data = json.load(f)
-        return {entry["url"] for entry in data}
+        return {_normalize_url(entry["url"]) for entry in data}
     except Exception as e:
         logger.warning(f"Could not read applied_jobs.json: {e}")
         return set()
@@ -33,7 +40,7 @@ def mark_as_applied(url: str, company: str, role: str) -> None:
             with APPLIED_JOBS_FILE.open() as f:
                 existing = json.load(f)
         existing.append({
-            "url": url,
+            "url": _normalize_url(url),
             "company": company,
             "role": role,
             "submitted_at": datetime.utcnow().isoformat(),

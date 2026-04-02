@@ -24,18 +24,42 @@ async def _send_connection_on_page(
         await page.goto(profile_url, timeout=30000)
         await random_delay(2.0, 4.0)
 
-        # Attempt 1: top-level Connect button
-        connect_btn = await page.query_selector('button:has-text("Connect")')
+        # Primary path: Connect is almost always behind the "More" overflow menu
+        # for 3rd+ connections. Try that first, fall back to top-level button.
+        connect_btn = None
+        # There are two "More" buttons: one in the top-right nav (~y=3) and one
+        # in the profile's action bar (~y=400+). Pick the profile one by finding
+        # the button whose top edge is more than 100px from the viewport top.
+        more_btn = await page.evaluate_handle("""() => {
+            const btns = Array.from(document.querySelectorAll('button'));
+            return btns.find(b =>
+                b.innerText.trim().startsWith('More') &&
+                b.getBoundingClientRect().top > 100
+            ) || null;
+        }""")
+        # evaluate_handle returns JSHandle; check if it resolved to an element
+        more_el = more_btn.as_element()
+        if more_el:
+            await more_el.scroll_into_view_if_needed()
+            await random_delay(0.5, 1.0)
+            await more_el.click()
+            await random_delay(0.8, 1.5)
+            # Wait for the dropdown to appear then find Connect inside it
+            try:
+                await page.wait_for_selector('[role="menu"]', timeout=5000)
+            except Exception:
+                pass
+            # LinkedIn renders "Connect" in the More dropdown as an <a role="menuitem">
+            # with aria-label="Invite [Name] to connect" — not a <button>.
+            connect_btn = await page.query_selector(
+                '[role="menuitem"][aria-label*="connect" i], '
+                '[role="menuitem"]:has-text("Connect"), '
+                'a[href*="custom-invite"]'
+            )
 
-        # Attempt 2: Connect hidden behind "More" overflow menu
+        # Fallback: top-level Connect button (1st/2nd degree or different layout)
         if not connect_btn:
-            more_btn = await page.query_selector('button:has-text("More")')
-            if more_btn:
-                await more_btn.click()
-                await random_delay(0.5, 1.0)
-                connect_btn = await page.query_selector(
-                    '.artdeco-dropdown__content button:has-text("Connect")'
-                )
+            connect_btn = await page.query_selector('button:has-text("Connect")')
 
         if not connect_btn:
             logger.warning(
@@ -45,26 +69,29 @@ async def _send_connection_on_page(
             return False
 
         await connect_btn.click()
-        await random_delay(1.0, 2.0)
+        await random_delay(1.5, 2.5)
 
-        # Add personalised note
-        add_note_btn = await page.query_selector('button:has-text("Add a note")')
-        if add_note_btn:
-            await add_note_btn.click()
-            await random_delay(0.5, 1.0)
-            note_textarea = await page.query_selector('textarea[name="message"]')
-            if note_textarea:
-                await note_textarea.fill(message)
-                await random_delay(1.0, 2.0)
-        else:
-            logger.warning("'Add a note' button not found — will send without note")
-
-        send_btn = await page.query_selector('button:has-text("Send")')
-        if not send_btn:
-            logger.warning("Send button not found after clicking Connect")
+        # Click "Add a note" to reveal the message textarea
+        add_note_btn = await page.query_selector('button[aria-label="Add a note"]')
+        if not add_note_btn:
+            logger.warning("'Add a note' button not found — skipping outreach")
+            await page.keyboard.press("Escape")
             return False
 
-        # Human approval gate — show full context before sending
+        await add_note_btn.click()
+        await random_delay(0.8, 1.5)
+
+        # Fill the textarea — it has no name/id so just select the first visible textarea
+        note_textarea = await page.query_selector('textarea')
+        if not note_textarea:
+            logger.warning("Note textarea not found — skipping outreach")
+            await page.keyboard.press("Escape")
+            return False
+
+        await note_textarea.fill(message)
+        await random_delay(0.5, 1.0)
+
+        # Human approval gate
         print(f"\n{'='*60}")
         print(f"  Recruiter : {recruiter_name}")
         print(f"  Profile   : {profile_url}")
@@ -73,17 +100,20 @@ async def _send_connection_on_page(
         decision = input("  Send connection request? [y/n]: ").strip().lower()
 
         if decision == "y":
+            send_btn = await page.query_selector('button[aria-label="Send invitation"]')
+            if not send_btn:
+                logger.warning("Send button not found")
+                return False
             await send_btn.click()
             await random_delay(1.0, 2.0)
             logger.info(f"Connection request sent to {recruiter_name}")
             return True
         else:
-            # Dismiss modal to avoid leaving stale UI
-            cancel_btn = await page.query_selector(
-                'button:has-text("Discard"), button[aria-label="Dismiss"]'
-            )
+            cancel_btn = await page.query_selector('button[aria-label="Cancel adding a note"]')
             if cancel_btn:
                 await cancel_btn.click()
+            else:
+                await page.keyboard.press("Escape")
             logger.info(f"Skipped outreach to {recruiter_name}")
             return False
 

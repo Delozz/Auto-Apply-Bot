@@ -18,8 +18,9 @@ async def ensure_linkedin_session(page) -> bool:
     try:
         await page.goto("https://www.linkedin.com/feed/", timeout=30000)
         await random_delay(2.0, 3.0)
-        nav = await page.query_selector("nav.global-nav")
-        if nav:
+        # URL-based check: unauthenticated users are redirected to /login or /authwall
+        url = page.url
+        if "/feed" in url or "/mynetwork" in url or "/jobs" in url:
             logger.info("LinkedIn session active — no login needed")
             return True
         return False
@@ -56,9 +57,10 @@ async def linkedin_login(page, context) -> bool:
             )
             input("  Press Enter after completing the checkpoint...")
             await random_delay(2.0, 3.0)
-        nav = await page.query_selector("nav.global-nav")
-        if not nav:
-            logger.error("LinkedIn login failed — check credentials")
+        # URL-based success check — more reliable than a CSS selector
+        url = page.url
+        if "/login" in url or "/checkpoint" in url or "/authwall" in url:
+            logger.error("LinkedIn login failed — check credentials or complete checkpoint")
             return False
         await context.storage_state(path=str(LINKEDIN_SESSION_FILE))
         logger.info(f"LinkedIn session saved to {LINKEDIN_SESSION_FILE}")

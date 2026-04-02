@@ -17,17 +17,22 @@ def generate_recruiter_message(
     role: str,
 ) -> str:
     """
-    Generates a short, personalized LinkedIn connection message.
-    Target length: ~280 characters (LinkedIn connection note limit).
+    Generates a LinkedIn connection note under 200 characters.
+    The opening line is built in code; the LLM only generates a short
+    closing question to fill the remaining space.
     """
-    template = (PROMPTS_DIR / "recruiter_message.txt").read_text()
-    prompt = template.format(
-        candidate_name=candidate.name,
-        candidate_school=candidate.education,
-        recruiter_name=recruiter_name,
-        company=company,
-        role=role,
-        skills=", ".join(candidate.skills[:4]),
+    first_name = recruiter_name.split()[0]
+    opening = (
+        f"Hello {first_name}, my name is {candidate.name} and I am excited "
+        f"to apply for the position of {role} at {company}. "
+    )
+    remaining = 200 - len(opening)
+
+    prompt = (
+        f"Write a single closing question (max {remaining} characters) for a LinkedIn "
+        f"connection note to a recruiter at {company}. Keep it simple and non-technical. "
+        f"Ask something genuine about what they look for in candidates or about the role. "
+        f"Do not include any names. Output the question only — no quotes."
     )
 
     logger.info(f"Generating outreach message → {recruiter_name} @ {company}")
@@ -35,15 +40,15 @@ def generate_recruiter_message(
         model=settings.openai_model,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.75,
-        max_tokens=120,
+        max_tokens=60,
     )
-    message = response.choices[0].message.content.strip()
+    question = response.choices[0].message.content.strip()
 
-    # Enforce LinkedIn note character cap
-    if len(message) > 295:
-        message = message[:292] + "..."
+    # Hard cap the question if the LLM overshoots
+    if len(opening) + len(question) > 200:
+        question = question[:200 - len(opening) - 3] + "..."
 
-    return message
+    return opening + question
 
 
 def batch_generate_messages(

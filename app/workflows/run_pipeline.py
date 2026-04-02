@@ -26,7 +26,7 @@ from app.automation.submission_handler import (
     pause_for_human_review, click_submit, confirm_submission,
     handle_verification_code, verify_form_filled,
 )
-from app.utils.application_tracker import load_applied_urls, mark_as_applied
+from app.utils.application_tracker import load_applied_urls, mark_as_applied, _normalize_url
 from app.outreach.outreach_orchestrator import run_post_application_outreach
 from app.utils.validators import CandidateProfile, JobPosting
 from app.utils.constants import RESUMES_DIR
@@ -249,7 +249,7 @@ async def run_full_pipeline():
         applied_urls = load_applied_urls()
         if applied_urls:
             before = len(qualified)
-            qualified = [j for j in qualified if j["application_url"] not in applied_urls]
+            qualified = [j for j in qualified if _normalize_url(j["application_url"]) not in applied_urls]
             skipped_count = before - len(qualified)
             if skipped_count:
                 logger.info(f"Skipped {skipped_count} already-applied job(s)")

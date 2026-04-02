@@ -3,13 +3,14 @@ Write a short LinkedIn connection note from {candidate_name} to {recruiter_name}
 Context:
 - Candidate is a CS student at {candidate_school}
 - Applied for: {role}
-- Top skills: {skills}
 
 Rules:
-- Max 280 characters total (LinkedIn limit)
+- Max 200 characters total (LinkedIn connection note limit — be concise)
+- MUST start with exactly: "Hello {recruiter_name}, my name is {candidate_name} and I am excited to apply for the position of {role} at {company}."
+- After the opening, briefly mention background using general terms only — say "programming languages" and "data structures" instead of naming specific technologies
+- Keep language simple and non-technical — the reader is a recruiter, not an engineer
 - Sound human, not automated
-- Reference the specific role
-- End with ONE genuine question (e.g. what qualities stand out in top candidates?)
+- MUST end with one genuine question directed at the recruiter (e.g. about what they look for in candidates, the team, or the process)
 - Do NOT say "I came across your profile" or "I hope this message finds you well"
 
 Output the message only — no quotes, no explanation.
