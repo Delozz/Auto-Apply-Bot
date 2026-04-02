@@ -42,3 +42,7 @@ pgdata/
 *.egg-info/
 dist/
 build/
+
+# LinkedIn session cookies — contain live auth tokens, never commit
+data/linkedin_session.json
+data/outreach_log.json

@@ -27,6 +27,7 @@ from app.automation.submission_handler import (
     handle_verification_code, verify_form_filled,
 )
 from app.utils.application_tracker import load_applied_urls, mark_as_applied
+from app.outreach.outreach_orchestrator import run_post_application_outreach
 from app.utils.validators import CandidateProfile, JobPosting
 from app.utils.constants import RESUMES_DIR
 from app.utils.logger import logger
@@ -185,6 +186,20 @@ async def process_job(job: JobPosting, resume_text: str) -> str:
                     mark_as_applied(job.application_url, job.company, job.role)
                     confirmed = await confirm_submission(page)
                     status = "submitted" if confirmed else "submit_attempted"
+
+                    # Post-application: recruiter outreach on LinkedIn
+                    # Wrapped in try/except — outreach failure must never affect
+                    # the already-recorded submission status.
+                    try:
+                        await run_post_application_outreach(
+                            company=job.company,
+                            role=job.role,
+                            candidate=CANDIDATE,
+                        )
+                    except Exception as _outreach_err:
+                        logger.warning(
+                            f"Outreach step failed (submission already recorded): {_outreach_err}"
+                        )
                 else:
                     status = "submit_failed"
             else:

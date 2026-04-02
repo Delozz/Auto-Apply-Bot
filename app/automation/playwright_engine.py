@@ -46,6 +46,34 @@ async def launch_browser(headless: bool = False):
     return playwright, browser, context, page
 
 
+async def launch_browser_with_session(session_path, headless: bool = False):
+    """
+    Launch browser loading stored cookies/localStorage from session_path if it exists.
+    Returns same (playwright, browser, context, page) tuple as launch_browser().
+    """
+    from pathlib import Path
+    playwright = await async_playwright().start()
+    browser = await playwright.chromium.launch(
+        headless=headless,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--no-sandbox",
+        ],
+    )
+    storage_state = str(session_path) if Path(session_path).exists() else None
+    context = await browser.new_context(
+        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
+        viewport={"width": 1280, "height": 800},
+        locale="en-US",
+        storage_state=storage_state,
+    )
+    await context.add_init_script(
+        "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+    )
+    page = await context.new_page()
+    return playwright, browser, context, page
+
+
 async def close_browser(playwright, browser: Browser):
     await browser.close()
     await playwright.stop()
