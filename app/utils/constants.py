@@ -5,6 +5,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = BASE_DIR / "data"
 RESUMES_DIR = DATA_DIR / "resumes"
 COVER_LETTERS_DIR = DATA_DIR / "cover_letters"
+APPLIED_JOBS_FILE = DATA_DIR / "applied_jobs.json"
 PROMPTS_DIR = BASE_DIR / "prompts"
 
 # ─── Job Filters ─────────────────────────────────────────────────────────────

@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     linkedin_email: str = ""
     linkedin_password: str = ""
 
+    # Gmail — for reading verification codes sent to the application email
+    gmail_address: str = "devoninternships@gmail.com"
+    gmail_app_password: str = ""  # generate at myaccount.google.com/apppasswords
+
     class Config:
         env_file = ".env"
 

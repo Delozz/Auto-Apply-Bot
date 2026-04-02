@@ -1,9 +1,15 @@
+import json
+
 from openai import OpenAI
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+
 from app.config import settings
 from app.utils.validators import CandidateProfile, JobPosting
 from app.utils.constants import PROMPTS_DIR, COVER_LETTERS_DIR
 from app.utils.logger import logger
-import json
 
 client = OpenAI(
     api_key=settings.openai_api_key,
@@ -33,9 +39,35 @@ def generate_cover_letter(candidate: CandidateProfile, job: JobPosting) -> str:
 
 
 def save_cover_letter(cover_letter: str, company: str, role: str) -> str:
-    """Save the generated cover letter to disk and return the file path."""
-    filename = f"{company.replace(' ', '_')}_{role.replace(' ', '_')}.txt"
+    """Save the generated cover letter as a PDF and return the file path."""
+    filename = f"{company.replace(' ', '_')}_{role.replace(' ', '_')}_cover_letter.pdf"
     output_path = COVER_LETTERS_DIR / filename
-    output_path.write_text(cover_letter)
+
+    styles = getSampleStyleSheet()
+    body_style = ParagraphStyle(
+        "CoverLetterBody",
+        parent=styles["Normal"],
+        fontSize=11,
+        leading=16,
+        spaceAfter=10,
+    )
+
+    doc = SimpleDocTemplate(
+        str(output_path),
+        pagesize=letter,
+        rightMargin=inch,
+        leftMargin=inch,
+        topMargin=inch,
+        bottomMargin=inch,
+    )
+
+    story = []
+    for paragraph in cover_letter.split("\n\n"):
+        text = paragraph.strip()
+        if text:
+            story.append(Paragraph(text.replace("\n", "<br/>"), body_style))
+            story.append(Spacer(1, 4))
+
+    doc.build(story)
     logger.info(f"Cover letter saved: {output_path}")
     return str(output_path)

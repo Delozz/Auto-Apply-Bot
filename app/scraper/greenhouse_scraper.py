@@ -28,7 +28,6 @@ GREENHOUSE_BOARDS = {
     "Duolingo": "duolingo",
     "Figma": "figma",
     "Flow Traders": "flowtraders",
-    "Grammarly": "grammarly",
     "HubSpot": "hubspot",
     "Hudson River Trading": "wehrtyou",
     "Instacart": "instacart",

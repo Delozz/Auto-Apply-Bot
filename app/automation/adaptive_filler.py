@@ -95,6 +95,27 @@ async def _js_react_select(page: Page, label: str, value: str) -> bool:
         await page.keyboard.press("Escape")
         return False
 
+def _truncate_at_sentence(text: str, max_chars: int) -> str:
+    """Truncate text to max_chars, ending at the last complete sentence."""
+    if len(text) <= max_chars:
+        return text
+    window = text[:max_chars]
+    # Find the last sentence-ending punctuation followed by whitespace or end
+    last_end = -1
+    for punct in ('. ', '! ', '? '):
+        pos = window.rfind(punct)
+        if pos > last_end:
+            last_end = pos + 1  # include the punctuation, exclude the space
+    # Also check if text ends with sentence-ender (no trailing space needed)
+    for punct in ('.', '!', '?'):
+        pos = window.rfind(punct)
+        if pos == len(window) - 1 and pos > last_end:
+            last_end = pos + 1
+    if last_end > max_chars // 3:  # don't over-truncate
+        return text[:last_end].rstrip()
+    return window.rstrip()  # fallback: cut at limit
+
+
 client = OpenAI(
     api_key=settings.openai_api_key,
     base_url=settings.openai_base_url,
@@ -328,7 +349,7 @@ def get_filling_plan(
         "veteran": "I am not a protected veteran",
         "disability": "No, I do not have a disability and have not had one in the past",
         "how_heard": "LinkedIn",
-        "cover_letter": cover_letter[:300] + "..." if len(cover_letter) > 300 else cover_letter,
+        "cover_letter": "PASTE_COVER_LETTER",
         "why_interested": why_interested[:400] + "..." if len(why_interested) > 400 else why_interested,
     }
 
@@ -352,7 +373,7 @@ INSTRUCTIONS:
 - For privacy/acknowledgement checkboxes, use "CHECK"
 - Skip fields you can't confidently fill (leave them out of the response)
 - For essay questions about "why interested", use the why_interested text
-- For cover letter text fields, use the cover_letter text
+- For cover letter text fields (textareas), use the value "PASTE_COVER_LETTER" exactly — do NOT use the truncated preview
 
 Return ONLY valid JSON array, no markdown, no explanation:
 [
@@ -394,6 +415,7 @@ async def execute_filling_plan(
     plan: list[dict],
     resume_path: str,
     cover_letter_path: str = "",
+    cover_letter: str = "",
 ) -> dict:
     """
     Execute the LLM-generated filling plan action by action.
@@ -476,6 +498,25 @@ async def execute_filling_plan(
                 continue
 
             else:  # fill — text input or textarea
+                # Resolve sentinel: replace PASTE_COVER_LETTER with actual full text
+                if value == "PASTE_COVER_LETTER":
+                    if not cover_letter:
+                        results["skipped"] += 1
+                        continue
+                    # Get maxlength of the target field (if any) to truncate gracefully
+                    try:
+                        label_el = await page.query_selector(f'label:has-text("{label[:40]}")')
+                        for_attr = await label_el.get_attribute("for") if label_el else None
+                        max_len = None
+                        if for_attr:
+                            field_el = await page.query_selector(f'#{for_attr}')
+                            if field_el:
+                                max_len = await field_el.get_attribute("maxlength")
+                                max_len = int(max_len) if max_len else None
+                        value = _truncate_at_sentence(cover_letter, max_len) if max_len else cover_letter
+                    except Exception:
+                        value = cover_letter
+
                 filled = await _fill_by_label(page, label[:40], value)
                 if not filled:
                     # Try by placeholder
@@ -488,7 +529,7 @@ async def execute_filling_plan(
                         pass
                 results["filled" if filled else "skipped"] += 1
                 if filled:
-                    logger.debug(f"Filled '{label}': {value[:30]}")
+                    logger.debug(f"Filled '{label}': {value[:50]}")
 
         except Exception as e:
             logger.warning(f"Action failed for '{label}': {e}")
@@ -544,12 +585,18 @@ async def adaptive_fill(
         logger.warning("LLM returned empty filling plan")
         return
 
+    # Reorder plan: country/country-code must come before phone to avoid page jumps
+    country_actions = [a for a in plan if 'country' in a.get('label', '').lower()]
+    other_actions = [a for a in plan if 'country' not in a.get('label', '').lower()]
+    plan = country_actions + other_actions
+
     # Step 3: Execute
     await execute_filling_plan(
         page=page,
         plan=plan,
         resume_path=resume_path,
         cover_letter_path=cover_letter_path,
+        cover_letter=cover_letter,
     )
 
     logger.info("Adaptive fill complete ✅")

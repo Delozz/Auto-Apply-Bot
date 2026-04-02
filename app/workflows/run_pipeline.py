@@ -18,12 +18,15 @@ from app.scraper.greenhouse_scraper import scrape_all_greenhouse
 from app.llm.resume_tailor import extract_resume_text
 from app.llm.embeddings import filter_jobs_by_score
 from app.llm.cover_letter_gen import generate_cover_letter, save_cover_letter
-from app.llm.resume_pdf_gen import generate_tailored_pdf
 from app.automation.playwright_engine import launch_browser, close_browser, random_delay
 from app.automation.form_filler import fill_greenhouse_application
 from app.automation.adaptive_filler import adaptive_fill
 from app.vision.form_analyzer import analyze_form_with_vision
-from app.automation.submission_handler import pause_for_human_review, click_submit, confirm_submission
+from app.automation.submission_handler import (
+    pause_for_human_review, click_submit, confirm_submission,
+    handle_verification_code, verify_form_filled,
+)
+from app.utils.application_tracker import load_applied_urls, mark_as_applied
 from app.utils.validators import CandidateProfile, JobPosting
 from app.utils.constants import RESUMES_DIR
 from app.utils.logger import logger
@@ -36,7 +39,7 @@ CANDIDATE = CandidateProfile(
     education="Texas A&M University - Computer Science",
     skills=["Python", "C++", "SQL", "Data Structures", "Algorithms"],
     interests=["Quantitative Finance", "Distributed Systems"],
-    resume_path=str(RESUMES_DIR / "master_resume.pdf"),
+    resume_path=str(RESUMES_DIR / "Devon_Lopez_SWE_Quant.pdf"),
     graduation_year="2028",
     linkedin_url="https://www.linkedin.com/in/devon-lopez1",   # add yours
     github_url="https://github.com/Delozz",     # add yours
@@ -97,20 +100,9 @@ async def process_job(job: JobPosting, resume_text: str) -> str:
     logger.info(f"{'='*60}")
 
     try:
-        # Step 1: Generate tailored resume
-        logger.info("Generating tailored resume PDF...")
-        tailored_resume_path = generate_tailored_pdf(
-            master_resume_path=CANDIDATE.resume_path,
-            job=job,
-        )
-        logger.info(f"Tailored resume: {tailored_resume_path}")
+        candidate_for_job = CANDIDATE
 
-        # Update candidate to use tailored resume for this application
-        candidate_for_job = CANDIDATE.model_copy(update={
-            "resume_path": tailored_resume_path
-        })
-
-        # Step 2: Generate cover letter
+        # Step 1: Generate cover letter
         logger.info("Generating cover letter...")
         cover_letter = generate_cover_letter(candidate_for_job, job)
         cover_letter_path = save_cover_letter(cover_letter, job.company, job.role)
@@ -171,14 +163,26 @@ async def process_job(job: JobPosting, resume_text: str) -> str:
                     swe_area_2=swe2,
                 )
 
-            logger.info("Autofill complete — review the form before submitting")
+            logger.info("Autofill complete — verifying fill quality...")
 
-            # Step 5: Human approval gate
+            # Step 5: Vision LLM verify all required fields are filled
+            all_filled, missing = await verify_form_filled(page)
+            if all_filled:
+                logger.info("✅ All required fields appear filled")
+            else:
+                logger.warning(f"⚠️  Potentially missing fields: {missing}")
+
+            # Step 6: Timed human review gate (auto-submits after 15s)
             approved = await pause_for_human_review(page, job.company, job.role)
 
             if approved:
                 submitted = await click_submit(page)
                 if submitted:
+                    # Handle email verification step if the ATS sends a code
+                    await handle_verification_code(page, sender_hint="no-reply@us.greenhouse-mail.io")
+                    # Track immediately after submit — don't wait for confirmation
+                    # page text match since ATS success pages vary widely.
+                    mark_as_applied(job.application_url, job.company, job.role)
                     confirmed = await confirm_submission(page)
                     status = "submitted" if confirmed else "submit_attempted"
                 else:
@@ -224,6 +228,16 @@ async def run_full_pipeline():
     resume_text = extract_resume_text(CANDIDATE.resume_path)
     qualified = filter_jobs_by_score(resume_text, [j.model_dump() for j in jobs])
     logger.info(f"Qualified (above threshold): {len(qualified)}")
+
+    # Filter out already-applied jobs
+    if SKIP_ALREADY_APPLIED:
+        applied_urls = load_applied_urls()
+        if applied_urls:
+            before = len(qualified)
+            qualified = [j for j in qualified if j["application_url"] not in applied_urls]
+            skipped_count = before - len(qualified)
+            if skipped_count:
+                logger.info(f"Skipped {skipped_count} already-applied job(s)")
 
     if not qualified:
         logger.warning("No jobs passed the threshold — lower SIMILARITY_THRESHOLD in constants.py")

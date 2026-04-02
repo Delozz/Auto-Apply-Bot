@@ -438,12 +438,44 @@ async def fill_greenhouse_application(
     """
     logger.info("Filling Greenhouse application...")
 
-    # 1. Basic text fields
-    await fill_basic_info(page, candidate)
+    # 1. Name + email first (before phone, so country code is set in the right order)
+    first = candidate.name.split()[0]
+    last = candidate.name.split()[-1]
+    await _try_fill(page, ['#first_name', 'input[name="first_name"]', 'input[name*="first"]'], first, "first name")
+    await _try_fill(page, ['#last_name', 'input[name="last_name"]', 'input[name*="last"]'], last, "last name")
+    await _try_fill(page, ['#email', 'input[name="email"]', 'input[type="email"]'], candidate.email, "email")
     await random_delay(0.1, 0.2)
 
-    # 2. Country — React Select (phone country code flag dropdown)
+    # 2. Country — React Select (phone country code flag dropdown) — BEFORE phone number
     await select_react_dropdown(page, "Country", "United States +1")
+    await random_delay(0.1, 0.2)
+
+    # 3. Phone — filled after country code is set to prevent page jumps
+    await _try_fill(page, ['#phone', 'input[id="phone"]', 'input[name="phone"]', 'input[name*="phone"]'], candidate.phone, "phone")
+
+    # Profile links
+    if candidate.linkedin_url:
+        filled = await _try_fill(page, [
+            'input[id*="linkedin"]', 'input[name*="linkedin"]',
+            'input[placeholder*="linkedin"]', 'input[placeholder*="LinkedIn"]',
+        ], candidate.linkedin_url, "linkedin")
+        if not filled:
+            await _fill_by_label(page, "Linkedin Profile", candidate.linkedin_url)
+
+    if candidate.github_url:
+        filled = await _try_fill(page, [
+            'input[id*="github"]', 'input[name*="github"]',
+            'input[placeholder*="github"]', 'input[placeholder*="GitHub"]',
+        ], candidate.github_url, "github")
+        if not filled:
+            await _fill_by_label(page, "Github Profile", candidate.github_url)
+
+    if candidate.website_url:
+        await _try_fill(page, [
+            'input[id*="website"]', 'input[name*="website"]',
+            'input[id*="portfolio"]',
+        ], candidate.website_url, "website")
+    await random_delay(0.1, 0.2)
 
     # 3. Location — React Select typeahead (type city name, select from suggestions)
     await select_react_dropdown(page, "Location", city)
