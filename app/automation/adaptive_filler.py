@@ -57,16 +57,38 @@ async def _js_react_select(page: Page, label: str, value: str) -> bool:
 
     await random_delay(0.4, 0.8)
     try:
-        await page.keyboard.type(value[:20], delay=40)
+        # Type first 12 chars to filter options (enough to narrow without over-specifying)
+        await page.keyboard.type(value[:12], delay=40)
         await random_delay(0.3, 0.6)
-        option = await page.query_selector(f'[class*="option"]:has-text("{value[:25]}")')
-        if not option:
-            option = await page.query_selector(f'[role="option"]:has-text("{value[:25]}")')
-        if option:
+
+        # Try progressively shorter prefixes to find a matching option
+        option = None
+        for prefix_len in (len(value), 20, 12, 6):
+            prefix = value[:prefix_len]
+            if not prefix:
+                continue
+            option = await page.query_selector(f'[class*="option"]:has-text("{prefix}")')
+            if not option:
+                option = await page.query_selector(f'[role="option"]:has-text("{prefix}")')
+            if option and await option.is_visible():
+                break
+            option = None
+
+        if option and await option.is_visible():
             await option.click()
             await random_delay(0.2, 0.4)
             logger.debug(f"JS React Select fallback: '{label}' → '{value}'")
             return True
+
+        # Last resort: click the first visible option in any open menu
+        first = await page.query_selector('[class*="option"]:not([class*="disabled"]), [role="option"]:not([aria-disabled="true"])')
+        if first and await first.is_visible():
+            text = (await first.inner_text()).strip()
+            await first.click()
+            await random_delay(0.2, 0.4)
+            logger.debug(f"JS React Select fallback (first option): '{label}' → '{text}'")
+            return True
+
         await page.keyboard.press("Escape")
         return False
     except Exception:
@@ -130,6 +152,10 @@ async def scan_form_fields(page: Page) -> list[dict]:
         // Standard text inputs
         document.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"], input[type="url"], input:not([type])').forEach(el => {
             if (!isVisible(el)) return;
+            // Skip inputs that are the internal search box of a React Select component.
+            // These look like text fields but values reset when focus leaves — the parent
+            // React Select must be interacted with as a dropdown, not a text field.
+            if (el.closest('[class*="select__"]') || el.getAttribute('role') === 'combobox') return;
             const label = getLabel(el);
             if (!label && !el.placeholder) return;
             results.push({
@@ -294,6 +320,7 @@ def get_filling_plan(
         "website": candidate.website_url or "",
         "authorized_to_work": "Yes",
         "requires_sponsorship": "No",
+        "privacy_consent": "Yes",
         "currently_enrolled": "Yes",
         "gender": "Male",
         "hispanic": "Yes",

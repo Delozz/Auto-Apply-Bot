@@ -28,16 +28,29 @@ client = OpenAI(
 
 # ─── Dropdown Prober ──────────────────────────────────────────────────────────
 
+_SKIP_PROBE_LABELS = {
+    "country", "phone country code", "country code", "country/region", "phone",
+}
+_MAX_OPTIONS = 20  # cap per-field to avoid LLM token bloat
+
+
 async def probe_dropdown_options(page: Page, label: str, trigger_selector: str | None) -> list[str]:
     """
-    Click a dropdown open, screenshot the option list, ask vision LLM to
-    transcribe the options, then close the dropdown.
+    Click a dropdown open, read the option list from the DOM, then close.
 
     For React Select dropdowns, trigger_selector may be None — in that case a
     JS DOM walk finds the control nearest to the label text and clicks it.
 
-    Returns: list of option strings (empty list if probing fails).
+    Skips country/phone-code fields (195 options would blow token limits).
+    Caps options at _MAX_OPTIONS to keep manifests compact.
+
+    Returns: list of option strings (empty list if probing fails or skipped).
     """
+    # Skip country/phone-code pickers — irrelevant and too many options
+    if label.strip().lower() in _SKIP_PROBE_LABELS:
+        logger.debug(f"Skipping probe for '{label}' (skip set)")
+        return []
+
     try:
         clicked = False
 
@@ -48,78 +61,118 @@ async def probe_dropdown_options(page: Page, label: str, trigger_selector: str |
                 clicked = True
 
         if not clicked:
-            # JS DOM walk: find the React Select control that lives closest to
-            # any element whose text matches the label.
-            clicked = await page.evaluate(f"""
+            # "Label-down" strategy: find the label element first, then locate
+            # the nearest select__control in the same container. Tag it with a
+            # data attribute so Playwright can click it with real mouse events
+            # (JS element.click() doesn't fire proper pointer events for React Select).
+            await page.evaluate(f"""
             () => {{
                 const needle = {json.dumps(label[:50].lower())};
-                const controls = document.querySelectorAll('[class*="select__control"]');
-                for (const control of controls) {{
-                    let parent = control.parentElement;
-                    for (let depth = 0; depth < 8 && parent; depth++) {{
-                        for (const sibling of parent.children) {{
-                            if (sibling.contains(control)) continue;
-                            const text = (sibling.innerText || '').trim()
-                                .replace(/[*]/g, '').toLowerCase();
-                            if (text && needle.slice(0, 12) && text.includes(needle.slice(0, 12))) {{
-                                control.scrollIntoView({{block: 'center'}});
-                                control.click();
-                                return true;
-                            }}
+                const shortNeedle = needle.slice(0, 30);
+
+                // Step 1: find label-like elements whose text matches.
+                const candidates = [];
+                document.querySelectorAll('label, [class*="label"], span, div').forEach(el => {{
+                    if (el.querySelector('[class*="select__control"]')) return;
+                    const text = (el.innerText || '').trim().replace(/[*]/g, '').toLowerCase();
+                    if (!text || text.length > 200) return;
+                    if (text === needle || text.startsWith(shortNeedle) ||
+                        (shortNeedle.length >= 6 && text.includes(shortNeedle) && text.length < 80)) {{
+                        candidates.push(el);
+                    }}
+                }});
+
+                // Step 2: for each candidate, walk UP to find a container
+                // that holds exactly one select__control.
+                for (const labelEl of candidates) {{
+                    let container = labelEl.parentElement;
+                    for (let d = 0; d < 5 && container; d++) {{
+                        const ctrls = container.querySelectorAll('[class*="select__control"]');
+                        if (ctrls.length === 1 && ctrls[0].getBoundingClientRect().width > 0) {{
+                            ctrls[0].setAttribute('data-probe-click', 'true');
+                            return;
                         }}
-                        parent = parent.parentElement;
+                        container = container.parentElement;
                     }}
                 }}
-                return false;
             }}
             """)
+            target = await page.query_selector('[data-probe-click="true"]')
+            if target:
+                await target.scroll_into_view_if_needed()
+                await target.click()
+                await page.evaluate('document.querySelector("[data-probe-click]")?.removeAttribute("data-probe-click")')
+                clicked = True
 
         if not clicked:
+            logger.debug(f"Could not click dropdown for '{label}'")
             return []
 
+        logger.debug(f"Probing options for '{label}'...")
         await random_delay(0.5, 1.0)  # let options render
 
-        # Screenshot just the visible viewport (options appear in viewport)
-        screenshot_bytes = await page.screenshot(full_page=False)
-        b64 = base64.b64encode(screenshot_bytes).decode()
+        # Read options directly from the DOM — faster and more reliable than
+        # screenshotting and calling a vision LLM.
+        # Priority: class-based selectors BEFORE [role="option"] to avoid
+        # picking up persistent country-code menu nodes from other dropdowns.
+        options = await page.evaluate("""
+        () => {
+            const candidates = [
+                // React Select class-based (most specific — avoids cross-dropdown bleed)
+                document.querySelectorAll('[class*="select__option"]'),
+                document.querySelectorAll('[class*="select__menu"] [class*="option"]'),
+                // Generic open menu option class
+                document.querySelectorAll('[class*="menu-list"] [class*="option"]'),
+                // ARIA listbox — only if class-based gave nothing (more likely to bleed)
+                document.querySelectorAll('[role="listbox"] [role="option"]'),
+                document.querySelectorAll('[role="option"]'),
+            ];
+            const junk = new Set(['Select...', '-- Select --', '', 'Loading...']);
+            for (const els of candidates) {
+                if (!els.length) continue;
+                const texts = Array.from(els)
+                    .map(el => el.innerText.trim())
+                    .filter(t => t && !junk.has(t));
+                if (texts.length > 0) return texts;
+            }
+            // Fallback: native <select> options (for non-React dropdowns)
+            const selects = document.querySelectorAll('select');
+            for (const sel of selects) {
+                if (sel.offsetWidth > 0 && sel.size > 1) {
+                    const opts = Array.from(sel.options)
+                        .map(o => o.text.trim())
+                        .filter(t => t && !junk.has(t) && !t.startsWith('--'));
+                    if (opts.length > 0) return opts;
+                }
+            }
+            return [];
+        }
+        """)
 
-        prompt = (
-            f"This is a screenshot of a job application form. "
-            f"A dropdown labeled '{label}' has been clicked open. "
-            f"List EVERY option visible in the dropdown menu as a JSON array of strings. "
-            f"Include only the option text, no explanations. "
-            f"Return ONLY valid JSON like: [\"Option 1\", \"Option 2\"]"
-        )
+        if options:
+            # Discard country-code-like option lists (e.g. "Afghanistan+93") —
+            # these come from the phone country code picker bleeding into other probes.
+            import re as _re
+            if len(options) > 5 and sum(
+                1 for o in options[:10] if _re.search(r'\+\d+$', o)
+            ) >= 8:
+                logger.debug(f"Discarding country-code options for '{label}' ({len(options)} opts)")
+                return []
+            capped = options[:_MAX_OPTIONS]
+            logger.debug(f"Probed '{label}': {len(options)} options (capped to {len(capped)})")
+            return capped
 
-        response = client.chat.completions.create(
-            model=settings.vision_model,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
-                    {"type": "text", "text": prompt},
-                ],
-            }],
-            temperature=0.1,
-        )
-
-        raw = response.choices[0].message.content.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-        options = json.loads(raw.strip())
-        logger.debug(f"Probed '{label}': {len(options)} options found")
-        return options if isinstance(options, list) else []
+        logger.debug(f"No DOM options found for '{label}' — dropdown may not have opened")
+        return []
 
     except Exception as e:
         logger.warning(f"Dropdown probe failed for '{label}': {e}")
         return []
     finally:
-        # Always close the dropdown — prevents stuck state blocking subsequent clicks
+        # Close the dropdown and give React time to unmount the menu DOM node.
         try:
             await page.keyboard.press("Escape")
-            await random_delay(0.2, 0.4)
+            await random_delay(0.3, 0.5)
         except Exception:
             pass
 
@@ -259,7 +312,7 @@ async def analyze_form_with_vision(page: Page, url: str) -> FormManifest:
                     const text = (sibling.innerText || '').trim().replace(/[*]/g, '').trim();
                     // Accept short text that looks like a label (not another form widget)
                     if (text && text.length < 120 && !sibling.querySelector('input, select, textarea, [class*="select__control"]')) {
-                        label = text.split('\n')[0].trim(); // first line only
+                        label = text.split('\\n')[0].trim(); // first line only
                         break;
                     }
                 }
@@ -273,6 +326,8 @@ async def analyze_form_with_vision(page: Page, url: str) -> FormManifest:
         return results;
     }
     """)
+
+    logger.debug(f"Dropdown selectors found: {[dd.get('label','?') for dd in dropdown_selectors]}")
 
     # Probe each dropdown
     for dd in dropdown_selectors:

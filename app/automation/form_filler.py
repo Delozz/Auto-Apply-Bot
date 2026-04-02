@@ -139,12 +139,23 @@ async def select_react_dropdown(page: Page, label_text: str, option_text: str) -
         else:
             # Standard dropdown: type to filter then click exact match
             await page.keyboard.type(option_text[:8], delay=30)
-            await random_delay(0.2, 0.35)
+            # Wait for options to appear (API-backed search fields need extra time)
+            try:
+                await page.wait_for_selector('[class*="select__option"]', timeout=2500)
+            except Exception:
+                await random_delay(0.2, 0.3)  # fallback if selector never appears
 
-        # For non-location dropdowns: match by exact option text
-        option = await page.query_selector(f'.select__option:has-text("{option_text}")')
+        # For non-location dropdowns: match by exact option text.
+        # Normalize typographic apostrophes so the has-text selector matches
+        # regardless of whether the DOM uses ' (U+2019) or ' (U+0027).
+        safe_text = option_text.replace('\u2019', "'").replace('\u2018', "'")
+        option = await page.query_selector(f'.select__option:has-text("{safe_text}")')
         if not option:
-            option = await page.query_selector(f'[class*="option"]:has-text("{option_text}")')
+            option = await page.query_selector(f'[class*="option"]:has-text("{safe_text}")')
+        # Partial-prefix fallback: useful when the full text has Unicode variants
+        if not option and len(safe_text) > 4:
+            prefix = safe_text[:12].replace('"', '')
+            option = await page.query_selector(f'[class*="option"]:has-text("{prefix}")')
         if option and await option.is_visible():
             await option.click()
             await random_delay(0.1, 0.2)
