@@ -89,7 +89,9 @@ def _check_inbox_for_code(sender_hint: str = "") -> str | None:
         # the message as \Seen — we only mark it seen if we actually use the code.
         for msg_id in reversed(message_ids[-5:]):
             _, msg_data = mail.fetch(msg_id, "(BODY.PEEK[])")
-            raw_email = msg_data[0][1]
+            raw_email = msg_data[0][1] if isinstance(msg_data[0], tuple) else None
+            if not isinstance(raw_email, (bytes, bytearray)):
+                continue
             msg = email.message_from_bytes(raw_email)
 
             body = _extract_body(msg)
@@ -110,16 +112,16 @@ def _extract_body(msg: email.message.Message) -> str:
         for part in msg.walk():
             if part.get_content_type() in ("text/plain", "text/html"):
                 try:
-                    parts.append(
-                        part.get_payload(decode=True).decode("utf-8", errors="replace")
-                    )
+                    payload = part.get_payload(decode=True)
+                    if isinstance(payload, (bytes, bytearray)):
+                        parts.append(payload.decode("utf-8", errors="replace"))
                 except Exception:
                     pass
     else:
         try:
-            parts.append(
-                msg.get_payload(decode=True).decode("utf-8", errors="replace")
-            )
+            payload = msg.get_payload(decode=True)
+            if isinstance(payload, (bytes, bytearray)):
+                parts.append(payload.decode("utf-8", errors="replace"))
         except Exception:
             pass
     return " ".join(parts)
@@ -163,18 +165,18 @@ def _find_verification_code(text: str) -> str | None:
             return candidate
 
     # 3. 8 contiguous digits
-    m = re.search(r'(?<!\d)(\d{8})(?!\d)', text)
-    if m:
-        return m.group(1)
+    match8 = re.search(r'(?<!\d)(\d{8})(?!\d)', text)
+    if match8:
+        return match8.group(1)
 
     # 4. 4+4 with separator
-    m = re.search(r'(?<!\d)(\d{4})[\s\-](\d{4})(?!\d)', text)
-    if m:
-        return m.group(1) + m.group(2)
+    match44 = re.search(r'(?<!\d)(\d{4})[\s\-](\d{4})(?!\d)', text)
+    if match44:
+        return match44.group(1) + match44.group(2)
 
     # 5. 6-digit fallback
-    m = re.search(r'(?<!\d)(\d{6})(?!\d)', text)
-    if m:
-        return m.group(1)
+    match6 = re.search(r'(?<!\d)(\d{6})(?!\d)', text)
+    if match6:
+        return match6.group(1)
 
     return None

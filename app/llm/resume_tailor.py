@@ -48,4 +48,4 @@ Respond in clean markdown with sections: Highlight, Rewrite, Add.
         messages=[{"role": "user", "content": prompt}],
         temperature=0.4,
     )
-    return response.choices[0].message.content.strip()
+    return (response.choices[0].message.content or "").strip()

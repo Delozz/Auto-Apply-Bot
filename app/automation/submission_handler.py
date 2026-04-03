@@ -52,7 +52,7 @@ async def verify_form_filled(page: Page) -> tuple[bool, list[str]]:
             }],
             max_tokens=256,
         )
-        raw = response.choices[0].message.content.strip()
+        raw = (response.choices[0].message.content or "").strip()
         # Strip markdown code fences if present
         if "```" in raw:
             raw = raw.split("```")[1].strip().lstrip("json").strip()
@@ -250,8 +250,7 @@ async def handle_verification_code(page: Page, sender_hint: str = "") -> bool:
             await page.fill(selector, "")
             await page.fill(selector, code)
         except Exception:
-            await el.click()
-            await el.triple_click()
+            await el.click(click_count=3)
             await page.keyboard.type(code)
 
     await page.wait_for_timeout(500)

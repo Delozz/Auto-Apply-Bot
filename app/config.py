@@ -8,15 +8,15 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # LLM — Groq
-    openai_api_key: str
+    openai_api_key: str = ""
     openai_model: str = "llama-3.3-70b-versatile"
     vision_model: str = "meta-llama/llama-4-scout-17b-16e-instruct"
     openai_base_url: str = "https://api.groq.com/openai/v1"
 
-    # Database
-    database_url: str
+    # Database (unused — tracking is done via JSON files)
+    database_url: str = ""
     postgres_user: str = "devon"
-    postgres_password: str
+    postgres_password: str = ""
     postgres_db: str = "auto_apply"
 
     # Redis

@@ -214,7 +214,7 @@ def analyze_page_screenshot(screenshot_bytes: bytes, scroll_position: int = 0) -
             }],
             temperature=0.1,
         )
-        raw = response.choices[0].message.content.strip()
+        raw = (response.choices[0].message.content or "").strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):

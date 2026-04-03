@@ -42,7 +42,7 @@ def generate_recruiter_message(
         temperature=0.75,
         max_tokens=60,
     )
-    question = response.choices[0].message.content.strip()
+    question = (response.choices[0].message.content or "").strip()
 
     # Hard cap the question if the LLM overshoots
     if len(opening) + len(question) > 200:

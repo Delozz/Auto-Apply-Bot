@@ -394,7 +394,7 @@ Actions:
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
         )
-        raw = response.choices[0].message.content.strip()
+        raw = (response.choices[0].message.content or "").strip()
         # Strip markdown if present
         if raw.startswith("```"):
             raw = raw.split("```")[1]
@@ -507,12 +507,12 @@ async def execute_filling_plan(
                     try:
                         label_el = await page.query_selector(f'label:has-text("{label[:40]}")')
                         for_attr = await label_el.get_attribute("for") if label_el else None
-                        max_len = None
+                        max_len: int | None = None
                         if for_attr:
                             field_el = await page.query_selector(f'#{for_attr}')
                             if field_el:
-                                max_len = await field_el.get_attribute("maxlength")
-                                max_len = int(max_len) if max_len else None
+                                raw_max = await field_el.get_attribute("maxlength")
+                                max_len = int(raw_max) if raw_max else None
                         value = _truncate_at_sentence(cover_letter, max_len) if max_len else cover_letter
                     except Exception:
                         value = cover_letter

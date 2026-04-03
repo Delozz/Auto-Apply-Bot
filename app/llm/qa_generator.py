@@ -35,5 +35,5 @@ def answer_application_question(
         messages=[{"role": "user", "content": prompt}],
         temperature=0.6,
     )
-    return response.choices[0].message.content.strip()
+    return (response.choices[0].message.content or "").strip()
 

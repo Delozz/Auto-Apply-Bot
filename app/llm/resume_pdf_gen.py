@@ -92,7 +92,7 @@ Only include bullets that would benefit from rewording. Leave unchanged bullets 
         temperature=0.3,
     )
 
-    raw_response = response.choices[0].message.content.strip()
+    raw_response = (response.choices[0].message.content or "").strip()
 
     try:
         # Strip markdown code fences if present
@@ -213,7 +213,7 @@ def _write_pdf(resume_text: str, summary: str, output_path: str):
         leading=14,
     )
 
-    story = []
+    story: list = []
     lines = resume_text.splitlines()
 
     # Track if we've added the summary

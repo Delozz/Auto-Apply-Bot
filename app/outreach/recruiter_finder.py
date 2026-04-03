@@ -11,7 +11,7 @@ async def _search_recruiters_on_page(page: Page, company: str, max_results: int 
     search_query = f"{company} recruiter university internship"
     url = f"https://www.linkedin.com/search/results/people/?keywords={search_query.replace(' ', '%20')}"
 
-    recruiters = []
+    recruiters: list[dict] = []
     logger.info(f"Searching recruiters for: {company}")
     await page.goto(url, timeout=30000)
     # Wait for profile links to appear — LinkedIn renders results asynchronously

@@ -90,10 +90,11 @@ async def select_react_dropdown(page: Page, label_text: str, option_text: str) -
                     return False
 
                 # Click the control div (not the input) to activate React Select
-                control = await closest_input.evaluate_handle(
+                # evaluate_handle returns a JSHandle; page.evaluate accepts JSHandle directly.
+                control_handle = await closest_input.evaluate_handle(
                     'el => el.closest(".select__control") || el.parentElement.parentElement'
                 )
-                await page.evaluate('el => el.click()', control)
+                await page.evaluate('el => el.click()', control_handle)
                 await random_delay(0.3, 0.5)
 
                 # Now type into the input using fill() + dispatchEvent to trigger React
@@ -232,7 +233,7 @@ async def _fill_by_label(page: Page, label_text: str, value: str) -> bool:
         sibling = await label.evaluate_handle('el => el.nextElementSibling')
         tag = await page.evaluate('el => el ? el.tagName : ""', sibling)
         if tag in ("INPUT", "TEXTAREA"):
-            await page.evaluate('(el, v) => el.value = v', sibling, value)
+            await page.evaluate('([el, v]) => el.value = v', [sibling, value])
             await page.evaluate('el => el.dispatchEvent(new Event("input", {bubbles: true}))', sibling)
             await random_delay(0.05, 0.1)
             logger.debug(f'Filled by label "{label_text}" via sibling')
