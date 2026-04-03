@@ -49,7 +49,7 @@ MAX_JOBS_PER_RUN = 50
 
 # ─── Embeddings (local via sentence-transformers, free) ──────────────────────
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"  # ~80MB, downloads once on first run
-SIMILARITY_THRESHOLD = 0.20            # min score to apply to a job
+SIMILARITY_THRESHOLD = 0.30            # min score to apply to a job
 
 # ─── Application Settings ────────────────────────────────────────────────────
 MAX_APPLICATIONS_PER_DAY = 20

@@ -81,10 +81,24 @@ async def scrape_greenhouse_board(company_name: str, board_token: str) -> list[J
                 if not any(kw in title.lower() for kw in swe_keywords):
                     continue
 
+                location: str = job.get("location", {}).get("name", "")
+                # Skip non-US postings — filter out known international indicators
+                location_lower = location.lower()
+                if location and not any(us_kw in location_lower for us_kw in [
+                    "united states", "u.s.", "us,", ", us", "remote",
+                    "new york", "san francisco", "chicago", "austin", "seattle",
+                    "boston", "washington", "denver", "atlanta", "los angeles",
+                    "pittsburgh", "philadelphia", "dallas", "miami", "houston",
+                    "new jersey", "connecticut", "illinois", "texas", "california",
+                    "massachusetts", "virginia", "maryland", "florida", "georgia",
+                    "colorado", "ohio", "north carolina", "pennsylvania",
+                ]):
+                    continue
+
                 jobs.append(JobPosting(
                     company=company_name,
                     role=title,
-                    location=job.get("location", {}).get("name", ""),
+                    location=location,
                     description=job.get("content", ""),
                     requirements=[],
                     application_url=job.get("absolute_url", ""),
