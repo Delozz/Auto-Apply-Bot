@@ -21,12 +21,13 @@ def generate_recruiter_message(
     The opening line is built in code; the LLM only generates a short
     closing question to fill the remaining space.
     """
-    first_name = recruiter_name.split()[0]
+    parts = recruiter_name.split()
+    first_name = parts[0] if parts else "there"
     opening = (
         f"Hello {first_name}, my name is {candidate.name} and I am excited "
         f"to apply for the position of {role} at {company}. "
     )
-    remaining = 200 - len(opening)
+    remaining = max(200 - len(opening), 20)  # guarantee at least 20 chars for question
 
     prompt = (
         f"Write a single closing question (max {remaining} characters) for a LinkedIn "
