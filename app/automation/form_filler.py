@@ -41,9 +41,6 @@ async def select_react_dropdown(page: Page, label_text: str, option_text: str) -
             logger.debug(f"React dropdown label not found: '{label_text}'")
             return False
 
-        # Get the parent select container
-        container = await label.evaluate_handle('el => el.closest(".select") || el.closest("[class*=\'select-shell\']") || el.parentElement.parentElement')
-
         # Click the control inside the container to open dropdown
         control = await page.query_selector(f'.select__label:has-text("{label_text}") ~ div .select__control--outside-label, .select__label:has-text("{label_text}") ~ .select-shell .select__control')
         if not control:

@@ -37,14 +37,3 @@ def answer_application_question(
     )
     return response.choices[0].message.content.strip()
 
-
-def batch_answer_questions(
-    questions: list[str],
-    candidate: CandidateProfile,
-    job: JobPosting,
-) -> list[dict]:
-    """Answer a list of application questions and return structured Q&A pairs."""
-    return [
-        {"question": q, "answer": answer_application_question(q, candidate, job)}
-        for q in questions
-    ]
